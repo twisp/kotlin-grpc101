@@ -1016,13 +1016,13 @@ private fun formatNormalBalance(
 }
 
 private fun inferExponent(balance: Balance?): Int {
-    if (balance == null || !balance.hasSettled()) return 2
+    if (balance == null || !balance.hasSettled()) return fractionalDigits(null)
     val settled = balance.settled
     val candidates = listOfNotNull(
         settled.takeIf { it.hasDrBalance() }?.drBalance,
         settled.takeIf { it.hasCrBalance() }?.crBalance,
     )
-    return candidates.firstOrNull { it.exponent >= 0 }?.exponent ?: 2
+    return candidates.firstOrNull()?.let(::fractionalDigits) ?: fractionalDigits(null)
 }
 
 private fun Money?.toBigDecimal(): BigDecimal {
@@ -1033,23 +1033,23 @@ private fun Money?.toBigDecimal(): BigDecimal {
     if (this.negative) {
         coefficient = coefficient.negate()
     }
-    val exponent = this.exponent
-    return if (exponent >= 0) {
-        BigDecimal(coefficient, exponent)
-    } else {
-        val multiplier = BigInteger.TEN.pow(-exponent)
-        BigDecimal(coefficient.multiply(multiplier))
-    }
+    return BigDecimal(coefficient).scaleByPowerOfTen(this.exponent)
 }
 
 private fun formatMoney(money: Money?): String {
     val value = money.toBigDecimal()
-    val scale = money?.exponent?.takeIf { it >= 0 } ?: 2
+    val scale = fractionalDigits(money)
     return try {
         value.setScale(scale, RoundingMode.UNNECESSARY).toPlainString()
     } catch (_: ArithmeticException) {
         value.setScale(scale, RoundingMode.HALF_UP).toPlainString()
     }
+}
+
+private fun fractionalDigits(money: Money?): Int {
+    val defaultDigits = 2
+    val exponent = money?.exponent ?: return defaultDigits
+    return if (exponent < 0) -exponent else defaultDigits
 }
 
 private fun directionString(direction: DebitOrCredit): String =
